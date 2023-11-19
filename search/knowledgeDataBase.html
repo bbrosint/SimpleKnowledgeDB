@@ -1,0 +1,197 @@
+<html lang="de-DE">
+<head>
+<meta charset="utf-8">
+<title>Simple Knowledge DB</title>
+
+
+<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-exp.min.css">
+<link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre-icons.min.css">
+<style>
+    body {
+        text-shadow: 0 .05rem .1rem rgba(0, 0, 0, .5);       
+        background: linear-gradient(rgb(255, 255, 255), rgb(120, 120, 120));    
+        background-size: 100% 400vh;
+        background-repeat: no-repeat;
+    }
+    .hero {
+        text-shadow: 0 0 1rem rgb(208, 231, 3);
+        text-align: center;
+    }
+    .results-area {
+        margin-top: 5em;
+        min-height: 10em;
+    }
+    .tile-content{
+        margin-top :1em;
+        margin-bottom :1em;
+    }
+    .tile{
+        margin: 1em;
+        border-radius: .5em;
+    }
+
+</style>
+<script src="https://code.jquery.com/jquery-3.7.1.min.js" integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+
+		
+<script type="text/javascript">
+    var mainPath = '../knowledgedocs/';
+    var searchResultElement;
+    let searchData = {};
+    let indices = {};
+    let data = {};
+    
+    function searchSinglePhrase(query){
+        var results = [];
+        if (query==''||String(query).length<3){
+            return results;
+        }
+
+        var resultSet = new Set();
+        var lcQuery = query.toLowerCase();                
+        ['titles','tags'].forEach(searchRegister =>{
+            Object.keys(searchData[searchRegister]).forEach(element => {
+                if(String(element.toLowerCase()).indexOf(lcQuery)>=0){
+                    searchData[searchRegister][element].forEach(elem => {
+                            resultSet.add(String(elem));
+                        });
+                }
+            });
+        })
+        return Array.from(resultSet);
+    }
+
+    function intersect(a, b) {
+        // https://stackoverflow.com/a/37041756
+        // function by nbarbosa (https://stackoverflow.com/users/6206601/nbarbosa)
+        var setB = new Set(b);
+        return [...new Set(a)].filter(x => setB.has(x));
+    }
+
+    function generateSearchResultItem(i, title, tags, createdDateTS, changedDateTS, author, link){
+        var createdDate = new Date(createdDateTS);
+        var changedDate = new Date(changedDateTS);
+        var evenItem = i%2;
+        var titleColor = evenItem ? 'text-light' : '';
+        var bgCard = evenItem ? 'bg-primary' : 'bg-secondary';
+        var bgChip =  evenItem ? 'bg-secondary text-primary' : 'bg-primary';
+        var infoTextColor = evenItem ? 'text-gray':'text-dark';
+        return `<div class="tile tile-centered ${bgCard} container" id="search-result-${i}">                    
+                    <div class="tile-content columns">
+                        <div class="column col-6 col-mr-auto"> 
+                            <div class="tile-title "><a href="${link}" class="${titleColor}">${title}</a></div>
+                            <small class="tile-subtitle ${infoTextColor}"><span class="chip ${bgChip}">${author}</span> · created: ${createdDate.toLocaleDateString()} · changed: ${changedDate.toLocaleDateString()} </small>
+                        </div>
+                        <div class="column col-6 col-mr-auto"> 
+                            <span class="chip ${bgChip}">${tags.join('</span><span class="chip '+bgChip + '">')}</span>
+                        </div>
+                    </div>
+                  </div>`;
+
+    }
+    function renderSearchResults(searchResults, query){
+               var i = 0;
+               var _dates = {};
+               var _fileTypes = {};
+               var tmpHtml = '';
+               var allIndices = [];
+               searchResults.forEach(element => {
+                    var desc = element['title'];
+                    var tags = element['tags'];
+                  
+                    tmpHtml += generateSearchResultItem(i, desc, tags,element['created'],element['changed'],element['author'], mainPath + element['filepath'] );
+                    allIndices.push(i);
+                    i++;
+
+                    
+               });
+               if(searchResults.length==0){
+                    tmpHtml += '<div class="text-center">'
+                    var response = 'Search phrase too short!';
+                    if(String(query).length>2){
+                         response =`There can be no results found for <span class="text-light bg-error">&nbsp;${query}&nbsp;</span> in the knowledge database!`;
+                    }
+                    tmpHtml += response + '</div>';
+                    
+               }
+               return tmpHtml;
+           }
+
+    function searchKDB(query){
+        var queryResults = [];
+        var results = [];
+        var space = ' ';
+        if(query.indexOf(space)==-1){
+            queryResults = searchSinglePhrase(query);
+            queryResults.forEach(element => {
+                    results.push(searchData['items'][element]);
+            });
+            return results;
+        }
+        var i = 0;
+        query.split(space).forEach(element => {
+            
+            var tmpResults = searchSingleQuery(element.trim());
+            if(i==0){
+                    queryResults.push(...tmpResults);
+            }
+            else{
+                    queryResults = intersect(queryResults, tmpResults);
+            }
+            i+=1;
+        });
+        queryResults.forEach(element => {
+                    results.push(searchData['items'][element]);
+        });
+        return results;
+               
+    }
+    function jsonCallback(jsonObject){
+        searchData = jsonObject;
+        mainPath = searchData['main_path'];
+    }
+
+    $(document).ready(function(e) {
+             
+             var searchBoxElement = $('#input-search-box');
+             searchResultElement = $('#search-results');
+             
+             searchBoxElement.on('change',function(){
+                  var searchAuthorButtonsHTML = '';
+                  var searchHtml = '';
+                  var query = searchBoxElement.val().trim();
+                  searchResult = searchKDB(query);
+                  searchHtml = renderSearchResults(searchResult, query);
+                  searchResultElement.html(searchHtml);
+              });
+         
+         });
+</script>
+<script type="text/javascript" language="javascript" src="./data.json"></script> 
+</head>
+<body>
+    <div class="hero">
+        <div class="hero-body">
+            <h1>Simple Knowledge DB</h1>
+        </div>
+    </div>
+    <div class="container">
+        <div class="columns">
+            <div class="column col-4 col-mx-auto">
+                <div class="form-group">
+                    <label class="form-label" for="input-search-box">Search Knowledge</label>
+                    <input class="form-input" type="text" id="input-search-box" placeholder="">
+                </div> 
+            </div>
+        </div>
+        <div class="columns">
+            <div class="column col-10 col-mx-auto">
+                <div id="search-results" class="results-area">
+                </div>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>
